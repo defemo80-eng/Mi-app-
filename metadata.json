@@ -1,0 +1,6 @@
+{
+  "name": "DeFitt",
+  "description": "Aplicación deportiva 100% sin internet con avatar 3D personal, contador de pasos, moneda COD, entrenamientos, escáner local de alimentos, tienda e historial.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
