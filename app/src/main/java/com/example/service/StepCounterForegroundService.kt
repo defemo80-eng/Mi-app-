@@ -24,7 +24,7 @@ class StepCounterForegroundService : Service() {
         super.onCreate()
         createNotificationChannel()
         val app = application as DeFittApplication
-        tracker = StepTrackerManager(this, app.repository)
+        tracker = app.stepTrackerManager
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

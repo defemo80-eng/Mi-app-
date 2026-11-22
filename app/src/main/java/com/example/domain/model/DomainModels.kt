@@ -94,7 +94,8 @@ data class ExerciseItem(
     val durationSeconds: Int,
     val restSeconds: Int,
     val difficulty: String,
-    val animTypeName: String
+    val animTypeName: String,
+    val safetyNote: String = "Mantén respiración constante y detente si sientes dolor articular."
 ) {
     val animType: ExerciseAnimType
         get() = ExerciseAnimType.valueOf(animTypeName)

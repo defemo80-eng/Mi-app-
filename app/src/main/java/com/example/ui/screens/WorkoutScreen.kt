@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -247,6 +248,26 @@ fun WorkoutScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary
                         )
+
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = DeFittSurface),
+                            border = BorderStroke(1.dp, CodGold.copy(alpha = 0.45f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.HealthAndSafety, "Seguridad", tint = CodGold, modifier = Modifier.size(18.dp))
+                                Text(
+                                    text = "Seguridad: ${currentExercise.safetyNote}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextWhite
+                                )
+                            }
+                        }
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),

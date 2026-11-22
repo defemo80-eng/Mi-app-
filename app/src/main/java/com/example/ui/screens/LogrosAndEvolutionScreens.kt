@@ -31,6 +31,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,9 +47,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,6 +54,11 @@ import com.example.domain.engine.DateUtils
 import com.example.domain.model.AvatarParams
 import com.example.ui.avatar3d.Avatar3DView
 import com.example.ui.components.CodBalanceChip
+import com.example.ui.components.CodWalletFlowChart
+import com.example.ui.components.HabitProgressRingsRow
+import com.example.ui.components.MonthlyActivityLineChart
+import com.example.ui.components.NutritionMacroDonutChart
+import com.example.ui.components.WeeklyStepsBarChart
 import com.example.ui.theme.CodGold
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DeFittBlack
@@ -96,6 +100,7 @@ fun LogrosScreen(
 ) {
     val unlockedByKey = remember(state.achievements) { state.achievements.associateBy { it.achievementKey } }
     val user = state.activeUser
+    var activeTab by remember { mutableIntStateOf(0) } // 0=Insignias, 1=Estadísticas
 
     Box(
         modifier = Modifier
@@ -117,91 +122,159 @@ fun LogrosScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Logros y Progreso", style = MaterialTheme.typography.headlineMedium, color = TextWhite)
+                Text("Logros y Estadísticas", style = MaterialTheme.typography.headlineMedium, color = TextWhite)
                 Text("XP: ${user?.xpTotal ?: 0}", style = MaterialTheme.typography.titleMedium, color = NeonGreen)
             }
 
-            Card(
-                colors = CardDefaults.cardColors(containerColor = DeFittSurfaceElevated),
-                border = BorderStroke(1.dp, NeonGreen.copy(alpha = 0.45f)),
-                shape = RoundedCornerShape(18.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "${state.achievements.size} de ${ALL_ACHIEVEMENT_SPECS.size} insignias",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = TextWhite
-                        )
-                        Text(
-                            "Las insignias otorgan XP y COD, sin alterar artificialmente el cuerpo del avatar.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                    }
-                    Button(
-                        onClick = onOpenEvolution,
-                        colors = ButtonDefaults.buttonColors(containerColor = NeonGreen, contentColor = DeFittPureBlack),
-                        modifier = Modifier.testTag("logros_open_evolution_btn")
-                    ) {
-                        Icon(Icons.Default.Timeline, null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.size(4.dp))
-                        Text("Evolución")
-                    }
-                }
+                FilterChip(
+                    selected = activeTab == 0,
+                    onClick = { activeTab = 0 },
+                    leadingIcon = { Icon(Icons.Default.EmojiEvents, null, modifier = Modifier.size(16.dp)) },
+                    label = { Text("Insignias (${state.achievements.size}/${ALL_ACHIEVEMENT_SPECS.size})") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = NeonGreen,
+                        selectedLabelColor = DeFittPureBlack,
+                        containerColor = DeFittSurface,
+                        labelColor = TextWhite
+                    ),
+                    modifier = Modifier.weight(1f).testTag("logros_tab_badges")
+                )
+                FilterChip(
+                    selected = activeTab == 1,
+                    onClick = { activeTab = 1 },
+                    leadingIcon = { Icon(Icons.Default.Timeline, null, modifier = Modifier.size(16.dp)) },
+                    label = { Text("Estadísticas") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = NeonGreen,
+                        selectedLabelColor = DeFittPureBlack,
+                        containerColor = DeFittSurface,
+                        labelColor = TextWhite
+                    ),
+                    modifier = Modifier.weight(1f).testTag("logros_tab_stats")
+                )
             }
 
-            ALL_ACHIEVEMENT_SPECS.forEach { spec ->
-                val unlocked = unlockedByKey[spec.key]
+            if (activeTab == 0) {
                 Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (unlocked != null) DeFittSurfaceElevated else DeFittSurface
-                    ),
-                    border = BorderStroke(
-                        1.dp,
-                        if (unlocked != null) CodGold.copy(alpha = 0.7f) else DeFittOutline
-                    ),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    colors = CardDefaults.cardColors(containerColor = DeFittSurfaceElevated),
+                    border = BorderStroke(1.dp, NeonGreen.copy(alpha = 0.45f)),
+                    shape = RoundedCornerShape(18.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (unlocked != null) Icons.Default.EmojiEvents else Icons.Default.Lock,
-                            contentDescription = null,
-                            tint = if (unlocked != null) CodGold else TextMuted,
-                            modifier = Modifier.size(30.dp)
-                        )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                spec.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = if (unlocked != null) TextWhite else TextSecondary
+                                "${state.achievements.size} de ${ALL_ACHIEVEMENT_SPECS.size} insignias",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = TextWhite
                             )
-                            Text(spec.description, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                             Text(
-                                text = if (unlocked != null) {
-                                    "Desbloqueado el ${DateUtils.formatDisplayDate(DateUtils.dateKeyFromMillis(unlocked.unlockedAt))}"
-                                } else {
-                                    "Recompensa: +${spec.codReward} COD • +${spec.xpReward} XP"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (unlocked != null) NeonGreen else CodGold
+                                "Las insignias otorgan XP y COD, sin alterar artificialmente el cuerpo del avatar.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
                             )
+                        }
+                        Button(
+                            onClick = onOpenEvolution,
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonGreen, contentColor = DeFittPureBlack),
+                            modifier = Modifier.testTag("logros_open_evolution_btn")
+                        ) {
+                            Icon(Icons.Default.Timeline, null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.size(4.dp))
+                            Text("Evolución")
                         }
                     }
                 }
+
+                ALL_ACHIEVEMENT_SPECS.forEach { spec ->
+                    val unlocked = unlockedByKey[spec.key]
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (unlocked != null) DeFittSurfaceElevated else DeFittSurface
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (unlocked != null) CodGold.copy(alpha = 0.7f) else DeFittOutline
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (unlocked != null) Icons.Default.EmojiEvents else Icons.Default.Lock,
+                                contentDescription = spec.title,
+                                tint = if (unlocked != null) CodGold else TextMuted,
+                                modifier = Modifier.size(30.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    spec.title,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = if (unlocked != null) TextWhite else TextSecondary
+                                )
+                                Text(spec.description, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                Text(
+                                    text = if (unlocked != null) {
+                                        "Desbloqueado el ${DateUtils.formatDisplayDate(DateUtils.dateKeyFromMillis(unlocked.unlockedAt))}"
+                                    } else {
+                                        "Recompensa: +${spec.codReward} COD • +${spec.xpReward} XP"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (unlocked != null) NeonGreen else CodGold
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                val activeDaysCount = remember(state.allDailyLogs) {
+                    state.allDailyLogs.count { it.steps > 0 || it.workoutsCompleted > 0 || it.caloriesTotal > 0f }
+                }
+                val completedWorkouts = remember(state.allWorkouts) {
+                    state.allWorkouts.count { it.completed }
+                }
+                val today = state.todayLog
+
+                HabitProgressRingsRow(
+                    activeDaysCount = activeDaysCount,
+                    completedWorkoutsCount = completedWorkouts,
+                    scansCount = state.bodyScans.size,
+                    unlockedAchievementsCount = state.achievements.size,
+                    totalAchievementsCount = ALL_ACHIEVEMENT_SPECS.size
+                )
+
+                WeeklyStepsBarChart(
+                    logs = state.allDailyLogs,
+                    stepGoal = user?.dailyStepGoal ?: 6000
+                )
+
+                MonthlyActivityLineChart(logs = state.allDailyLogs)
+
+                CodWalletFlowChart(transactions = state.transactions)
+
+                NutritionMacroDonutChart(
+                    proteinGrams = today?.proteinTotal ?: 0f,
+                    carbsGrams = today?.carbsTotal ?: 0f,
+                    fatsGrams = today?.fatsTotal ?: 0f,
+                    sugarsGrams = today?.sugarsTotal ?: 0f,
+                    fiberGrams = today?.fiberTotal ?: 0f,
+                    calories = today?.caloriesTotal ?: 0f
+                )
             }
         }
     }
@@ -314,63 +387,22 @@ fun EvolutionScreen(
                     )
                 }
 
-                // Daily Steps Bar Chart (last 7 logged days)
-                val chartLogs = state.allDailyLogs.take(7).reversed()
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = DeFittSurface),
-                    border = BorderStroke(1.dp, DeFittOutline),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Actividad de los últimos días (pasos)", style = MaterialTheme.typography.titleMedium, color = TextWhite)
-                        if (chartLogs.isEmpty()) {
-                            Text("Aún no hay días registrados.", color = TextMuted)
-                        } else {
-                            val maxSteps = (chartLogs.maxOf { it.steps }.coerceAtLeast(1000L)).toFloat()
-                            Canvas(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(120.dp)
-                            ) {
-                                val barCount = chartLogs.size
-                                val slotW = size.width / barCount
-                                val barW = (slotW * 0.52f).coerceAtMost(42f)
-                                chartLogs.forEachIndexed { idx, log ->
-                                    val ratio = (log.steps / maxSteps).coerceIn(0.05f, 1f)
-                                    val barH = size.height * ratio
-                                    val left = idx * slotW + (slotW - barW) / 2f
-                                    drawRoundRect(
-                                        color = NeonGreen,
-                                        topLeft = Offset(left, size.height - barH),
-                                        size = Size(barW, barH),
-                                        cornerRadius = CornerRadius(8f, 8f)
-                                    )
-                                }
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                chartLogs.forEach { log ->
-                                    Text(log.dateKey.takeLast(5), style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                                }
-                            }
-                        }
-                    }
-                }
+                // Modern Weekly Steps & Monthly Activity Charts
+                WeeklyStepsBarChart(
+                    logs = state.allDailyLogs,
+                    stepGoal = state.activeUser?.dailyStepGoal ?: 6000
+                )
 
-                // Consistency summary
+                MonthlyActivityLineChart(logs = state.allDailyLogs)
+
                 val completedWorkouts = state.allWorkouts.count { it.completed }
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = DeFittSurface),
-                    border = BorderStroke(1.dp, DeFittOutline),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Progreso de hábitos", style = MaterialTheme.typography.titleMedium, color = NeonGreen)
-                        Text("• Días registrados: ${state.allDailyLogs.size}", color = TextWhite)
-                        Text("• Entrenamientos completados: $completedWorkouts", color = TextWhite)
-                        Text("• Escaneos guardados: ${scans.size}", color = TextWhite)
-                        Text("• Logros desbloqueados: ${state.achievements.size}/${ALL_ACHIEVEMENT_SPECS.size}", color = TextWhite)
-                    }
-                }
+                HabitProgressRingsRow(
+                    activeDaysCount = state.allDailyLogs.count { it.steps > 0 || it.workoutsCompleted > 0 },
+                    completedWorkoutsCount = completedWorkouts,
+                    scansCount = scans.size,
+                    unlockedAchievementsCount = state.achievements.size,
+                    totalAchievementsCount = ALL_ACHIEVEMENT_SPECS.size
+                )
             }
         }
     }

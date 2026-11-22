@@ -75,7 +75,7 @@ class DeFittViewModel(application: Application) : AndroidViewModel(application) 
 
     private val app = application as DeFittApplication
     private val repo = app.repository
-    val stepTracker = StepTrackerManager(application, repo)
+    val stepTracker = app.stepTrackerManager
 
     private val _selectedHistoryDate = MutableStateFlow(DateUtils.todayKey())
     val selectedHistoryDate: StateFlow<String> = _selectedHistoryDate.asStateFlow()

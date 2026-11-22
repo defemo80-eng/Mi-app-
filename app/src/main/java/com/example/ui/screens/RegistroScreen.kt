@@ -55,6 +55,7 @@ import com.example.domain.engine.DateUtils
 import com.example.domain.model.AvatarParams
 import com.example.domain.model.MealType
 import com.example.ui.avatar3d.Avatar3DView
+import com.example.ui.components.NutritionMacroDonutChart
 import com.example.ui.theme.CodGold
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.DeFittBlack
@@ -63,6 +64,7 @@ import com.example.ui.theme.DeFittPureBlack
 import com.example.ui.theme.DeFittSurface
 import com.example.ui.theme.DeFittSurfaceElevated
 import com.example.ui.theme.NeonGreen
+import com.example.ui.theme.NeonGreenContainer
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
@@ -217,6 +219,8 @@ fun RegistroScreen(
                         val grid = remember(calYear, calMonth) { DateUtils.monthDaysGrid(calYear, calMonth) }
                         val rows = grid.chunked(7)
                         val scanDates = remember(state.bodyScans) { state.bodyScans.map { it.dateKey }.toSet() }
+                        val todayKey = remember { DateUtils.todayKey() }
+                        val stepGoal = (state.activeUser?.dailyStepGoal ?: 6000).coerceAtLeast(1)
 
                         rows.forEach { week ->
                             Row(
@@ -233,7 +237,9 @@ fun RegistroScreen(
                                             log.steps > 0 || log.caloriesTotal > 0f ||
                                                 log.workoutsCompleted > 0 || scanDates.contains(dateKey)
                                             )
+                                        val goalMet = (log?.steps ?: 0L) >= stepGoal.toLong()
                                         val isSelected = dateKey == selectedDate
+                                        val isToday = dateKey == todayKey
                                         val dayNum = dateKey.takeLast(2).toIntOrNull()?.toString() ?: ""
 
                                         Box(
@@ -244,39 +250,55 @@ fun RegistroScreen(
                                                 .background(
                                                     when {
                                                         isSelected -> NeonGreen
+                                                        goalMet -> NeonGreenContainer
                                                         hasActivity -> DeFittSurfaceElevated
                                                         else -> DeFittBlack
                                                     }
                                                 )
                                                 .border(
-                                                    1.dp,
-                                                    if (isSelected) NeonGreen else if (hasActivity) NeonGreen.copy(alpha = 0.4f) else DeFittOutline.copy(alpha = 0.4f),
-                                                    RoundedCornerShape(10.dp)
+                                                    width = if (isSelected || isToday) 1.5.dp else 1.dp,
+                                                    color = when {
+                                                        isSelected -> NeonGreen
+                                                        isToday -> CodGold
+                                                        hasActivity -> NeonGreen.copy(alpha = 0.45f)
+                                                        else -> DeFittOutline.copy(alpha = 0.4f)
+                                                    },
+                                                    shape = RoundedCornerShape(10.dp)
                                                 )
                                                 .clickable {
                                                     onSelectDate(dateKey)
                                                     mode = 0
-                                                },
+                                                }
+                                                .testTag("calendar_day_$dateKey"),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
                                                 Text(
                                                     text = dayNum,
                                                     color = if (isSelected) DeFittPureBlack else TextWhite,
                                                     style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                    fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
                                                 )
                                                 if (hasActivity) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(5.dp)
-                                                            .clip(CircleShape)
-                                                            .background(
-                                                                if (isSelected) DeFittPureBlack
-                                                                else if (scanDates.contains(dateKey)) CodGold
-                                                                else NeonGreen
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(5.dp)
+                                                                .clip(CircleShape)
+                                                                .background(if (isSelected) DeFittPureBlack else NeonGreen)
+                                                        )
+                                                        if (scanDates.contains(dateKey)) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(5.dp)
+                                                                    .clip(CircleShape)
+                                                                    .background(if (isSelected) DeFittPureBlack else CodGold)
                                                             )
-                                                    )
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -289,8 +311,8 @@ fun RegistroScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("● Verde: actividad/comida", style = MaterialTheme.typography.labelSmall, color = NeonGreen)
-                            Text("● Dorado: escaneo corporal", style = MaterialTheme.typography.labelSmall, color = CodGold)
+                            Text("● Verde: actividad", style = MaterialTheme.typography.labelSmall, color = NeonGreen)
+                            Text("● Dorado: escaneo / hoy", style = MaterialTheme.typography.labelSmall, color = CodGold)
                         }
                     }
                 }
@@ -345,30 +367,20 @@ fun RegistroScreen(
             Avatar3DView(
                 avatarParams = snapshotAvatar,
                 equippedItemIds = state.equipped.map { it.itemId },
-                modifier = Modifier.fillMaxWidth().height(175.dp),
-                showRotateHint = true,
+                modifier = Modifier.fillMaxWidth().height(210.dp),
+                showAngleControls = true,
                 testTag = "history_avatar_3d"
             )
 
-            // Nutritional Totals for Selected Date
-            Card(
-                colors = CardDefaults.cardColors(containerColor = DeFittSurface),
-                border = BorderStroke(1.dp, DeFittOutline),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Default.Restaurant, null, tint = NeonGreen, modifier = Modifier.size(18.dp))
-                        Text("Resumen nutricional aproximado", style = MaterialTheme.typography.titleMedium, color = TextWhite)
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        StatBadge("Proteínas", "${"%.1f".format(selectedLog?.proteinTotal ?: 0f)}g")
-                        StatBadge("Carbs", "${"%.1f".format(selectedLog?.carbsTotal ?: 0f)}g")
-                        StatBadge("Grasas", "${"%.1f".format(selectedLog?.fatsTotal ?: 0f)}g")
-                        StatBadge("Azúcares", "${"%.1f".format(selectedLog?.sugarsTotal ?: 0f)}g")
-                    }
-                }
-            }
+            // Nutritional Totals Donut Chart for Selected Date
+            NutritionMacroDonutChart(
+                proteinGrams = selectedLog?.proteinTotal ?: 0f,
+                carbsGrams = selectedLog?.carbsTotal ?: 0f,
+                fatsGrams = selectedLog?.fatsTotal ?: 0f,
+                sugarsGrams = selectedLog?.sugarsTotal ?: 0f,
+                fiberGrams = selectedLog?.fiberTotal ?: 0f,
+                calories = selectedLog?.caloriesTotal ?: 0f
+            )
 
             // Meals grouped by section
             MealType.entries.forEach { meal ->

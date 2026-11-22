@@ -15,6 +15,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -67,6 +68,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -208,6 +211,29 @@ fun FoodScannerScreen(
                                 previewView
                             }
                         )
+                        // Corner targeting reticle overlay
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val padX = size.width * 0.22f
+                            val padY = size.height * 0.16f
+                            val left = padX
+                            val right = size.width - padX
+                            val top = padY
+                            val bottom = size.height - padY
+                            val corner = 26f
+                            val c = NeonGreen.copy(alpha = 0.72f)
+
+                            drawLine(c, Offset(left, top), Offset(left + corner, top), 4f, StrokeCap.Round)
+                            drawLine(c, Offset(left, top), Offset(left, top + corner), 4f, StrokeCap.Round)
+
+                            drawLine(c, Offset(right, top), Offset(right - corner, top), 4f, StrokeCap.Round)
+                            drawLine(c, Offset(right, top), Offset(right, top + corner), 4f, StrokeCap.Round)
+
+                            drawLine(c, Offset(left, bottom), Offset(left + corner, bottom), 4f, StrokeCap.Round)
+                            drawLine(c, Offset(left, bottom), Offset(left, bottom - corner), 4f, StrokeCap.Round)
+
+                            drawLine(c, Offset(right, bottom), Offset(right - corner, bottom), 4f, StrokeCap.Round)
+                            drawLine(c, Offset(right, bottom), Offset(right, bottom - corner), 4f, StrokeCap.Round)
+                        }
                     } else {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,

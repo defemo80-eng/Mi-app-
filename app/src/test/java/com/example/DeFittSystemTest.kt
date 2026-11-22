@@ -209,7 +209,73 @@ class DeFittSystemTest {
     }
 
     @Test
-    fun `compose ui critical journey renders auth screen and registers user`() {
+    fun `step counter hal 0 to 1596 spike 2 real steps duplicate reboot and logout reset`() = runTest {
+        val reg = repo.registerAccount("Mateo Silva", "mateo", 29, "1357") as AuthResult.Success
+        val uid = reg.user.id
+
+        // HAL emits initial 0f dummy reading on listener start -> 0 steps
+        assertEquals(0L, repo.processHardwareStepSensorValue(uid, 0f))
+
+        // Sensor immediately reports cumulative boot counter 1596f within <15s -> re-baselines cleanly, 0 steps/COD!
+        assertEquals(0L, repo.processHardwareStepSensorValue(uid, 1596f))
+        assertEquals(0L, db.dailyLogDao().getLogForDate(uid, com.example.domain.engine.DateUtils.todayKey())?.steps)
+        assertEquals(0L, db.userDao().getUserById(uid)?.codBalance)
+
+        // User walks 2 real steps -> exact 2 steps & 2 COD
+        val st1 = db.stepStateDao().getState(uid)!!
+        db.stepStateDao().upsertState(st1.copy(lastStepEventTimestampMs = st1.lastStepEventTimestampMs - 5_000L))
+        assertEquals(2L, repo.processHardwareStepSensorValue(uid, 1598f))
+        assertEquals(2L, db.dailyLogDao().getLogForDate(uid, com.example.domain.engine.DateUtils.todayKey())?.steps)
+        assertEquals(2L, db.userDao().getUserById(uid)?.codBalance)
+
+        // User walks 10 more steps -> total 12 steps & 12 COD
+        val st2 = db.stepStateDao().getState(uid)!!
+        db.stepStateDao().upsertState(st2.copy(lastStepEventTimestampMs = st2.lastStepEventTimestampMs - 10_000L))
+        assertEquals(10L, repo.processHardwareStepSensorValue(uid, 1608f))
+
+        // Duplicate reading on app reopen -> 0 duplicates
+        assertEquals(0L, repo.processHardwareStepSensorValue(uid, 1608f))
+
+        // Phone reboot resets sensor to 5f -> recovers +5 without duplicating 1608!
+        val st3 = db.stepStateDao().getState(uid)!!
+        db.stepStateDao().upsertState(st3.copy(lastStepEventTimestampMs = st3.lastStepEventTimestampMs - 10_000L))
+        assertEquals(5L, repo.processHardwareStepSensorValue(uid, 5f))
+
+        val log = db.dailyLogDao().getLogForDate(uid, com.example.domain.engine.DateUtils.todayKey())!!
+        assertEquals(17L, log.steps)
+        assertEquals(17L, log.codEarned)
+        assertEquals(17L, db.userDao().getUserById(uid)!!.codBalance)
+
+        // Logout clears baseline so steps taken while logged out aren't credited on re-login
+        repo.logout()
+        repo.loginAccount("mateo", "1357")
+        assertEquals(0L, repo.processHardwareStepSensorValue(uid, 180f))
+        assertEquals(17L, db.userDao().getUserById(uid)!!.codBalance)
+    }
+
+    @Test
+    fun `store covers all 11 categories and wardrobe equip unequip works cleanly`() = runTest {
+        val reg = repo.registerAccount("Valeria Cruz", "vale", 25, "9876") as AuthResult.Success
+        val uid = reg.user.id
+
+        // Every one of the 11 StoreCategory entries must have items
+        com.example.domain.model.StoreCategory.entries.forEach { cat ->
+            assertTrue(
+                "Category ${cat.displayName} must have items",
+                StoreCatalog.allItems.any { it.category == cat }
+            )
+        }
+
+        // Starter items equipped initially, toggle off & back on
+        val starterShirt = StoreCatalog.getById("shirt_defitt_black")!!
+        repo.toggleEquipItem(uid, starterShirt)
+        assertFalse(db.storeDao().getEquipped(uid).any { it.itemId == starterShirt.id })
+        repo.toggleEquipItem(uid, starterShirt)
+        assertTrue(db.storeDao().getEquipped(uid).any { it.itemId == starterShirt.id })
+    }
+
+    @Test
+    fun `compose ui critical journey navigates across home store wardrobe calendar stats and workout`() {
         composeRule.setContent {
             DeFittTheme {
                 DeFittAppRoot()
@@ -220,7 +286,7 @@ class DeFittSystemTest {
             composeRule.onAllNodesWithTag("auth_tab_register").fetchSemanticsNodes().isNotEmpty()
         }
 
-        // Verify AuthScreen renders and lets user fill registration fields
+        // Register user
         composeRule.onNodeWithTag("auth_tab_register").performScrollTo().performClick()
         composeRule.onNodeWithTag("register_name_input").performScrollTo().performTextInput("Elena Vega")
         composeRule.onNodeWithTag("auth_nickname_input").performScrollTo().performTextInput("elenavega")
@@ -229,17 +295,69 @@ class DeFittSystemTest {
         composeRule.onNodeWithTag("auth_submit_button").performScrollTo().performClick()
         composeRule.waitForIdle()
 
-        // Wait for async PBKDF2 + Room registration coroutine to show recovery code dialog
         composeRule.waitUntil(timeoutMillis = 8_000) {
             composeRule.onAllNodesWithTag("recovery_code_display").fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithTag("recovery_code_display").assertIsDisplayed()
         composeRule.onNodeWithTag("recovery_code_confirm_button").performClick()
 
+        // Home screen hero avatar & steps
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithTag("home_avatar_3d").fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithTag("home_avatar_3d").assertIsDisplayed()
+        composeRule.onNodeWithTag("home_steps_text").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("home_workout_button").assertExists()
+
+        // Tienda: verify product artwork & Mi Armario tab
+        composeRule.onNodeWithTag("nav_tienda").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("store_avatar_3d").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("store_artwork_shirt_defitt_black").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("store_artwork_shirt_defitt_black").assertExists()
+        composeRule.onNodeWithTag("store_tab_wardrobe").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("equip_item_shirt_defitt_black").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Registro: verify calendar tab
+        composeRule.onNodeWithTag("nav_registro").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("registro_tab_calendar").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("registro_tab_calendar").performClick()
+        composeRule.onNodeWithTag("calendar_prev_month").performScrollTo().assertIsDisplayed()
+
+        // Logros & Estadísticas: verify real DB charts render
+        composeRule.onNodeWithTag("nav_logros").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("logros_tab_stats").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("logros_tab_stats").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("chart_habit_rings").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("chart_weekly_steps").assertExists()
+
+        // Back to Home & Workout SÍ confirmation
+        composeRule.onNodeWithTag("nav_home").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("home_workout_button").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("home_workout_button").performScrollTo().performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("workout_finish_confirm_btn").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("workout_finish_confirm_btn").performScrollTo().performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("workout_confirm_yes_button").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("workout_confirm_yes_button").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag("home_avatar_3d").fetchSemanticsNodes().isNotEmpty()
+        }
     }
 }

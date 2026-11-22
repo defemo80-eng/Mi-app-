@@ -15,6 +15,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -72,7 +73,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -361,6 +366,50 @@ fun BodyScannerScreen(
                                     }, ContextCompat.getMainExecutor(previewView.context))
                                 }
                             )
+
+                            // Translucent posture alignment guide overlay
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val cx = size.width / 2f
+                                val h = size.height
+                                val guideColor = NeonGreen.copy(alpha = 0.42f)
+                                val headR = h * 0.085f
+                                drawCircle(
+                                    color = guideColor,
+                                    radius = headR,
+                                    center = Offset(cx, h * 0.17f),
+                                    style = Stroke(width = 3f)
+                                )
+                                val torsoW = if (activeAngleIndex == 1) h * 0.11f else h * 0.22f
+                                drawRoundRect(
+                                    color = guideColor,
+                                    topLeft = Offset(cx - torsoW / 2f, h * 0.27f),
+                                    size = Size(torsoW, h * 0.34f),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(16f, 16f),
+                                    style = Stroke(width = 2.5f)
+                                )
+                                drawLine(
+                                    color = guideColor,
+                                    start = Offset(cx, h * 0.08f),
+                                    end = Offset(cx, h * 0.92f),
+                                    strokeWidth = 1.5f,
+                                    cap = StrokeCap.Round
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(8.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(DeFittBlack.copy(alpha = 0.7f))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Guía: ${angles[activeAngleIndex]} (${capturedAngles.size}/3)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = NeonGreen
+                                )
+                            }
 
                             IconButton(
                                 onClick = { useFrontCamera = !useFrontCamera },

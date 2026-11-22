@@ -6,11 +6,13 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -31,6 +33,7 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalDining
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
@@ -51,11 +54,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.example.data.repository.DeFittRepository
 import com.example.ui.avatar3d.Avatar3DView
 import com.example.ui.components.CodBalanceChip
 import com.example.ui.components.DeFittOfficialLogo
@@ -109,13 +116,14 @@ fun HomeScreen(
         if (granted) onActivityPermissionGranted()
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(DeFittBlack)
             .padding(contentPadding),
         contentAlignment = Alignment.TopCenter
     ) {
+        val heroHeight = (maxHeight * 0.46f).coerceIn(220.dp, 350.dp)
         Column(
             modifier = Modifier
                 .widthIn(max = 600.dp)
@@ -124,7 +132,7 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 1. Header: Logo de DeFitt + Saldo de COD
+            // 1. Header: Logo oficial de DeFitt + Saludo + Estado Offline + Saldo COD
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -132,14 +140,16 @@ fun HomeScreen(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    DeFittOfficialLogo(size = 46.dp)
-                    Column {
+                    DeFittOfficialLogo(size = 48.dp)
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(
                             text = "Hola, ${user?.nickname ?: "Atleta"}",
                             style = MaterialTheme.typography.titleLarge,
-                            color = TextWhite
+                            color = TextWhite,
+                            maxLines = 1
                         )
                         OfflineBadge()
                     }
@@ -155,7 +165,7 @@ fun HomeScreen(
                 }
             }
 
-            // Sensor or Permission notice (never fake steps!)
+            // Sensor / Permission / Healthy safeguard notices (never fake telemetry)
             if (!state.stepSensorAvailable) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = DeFittSurfaceElevated),
@@ -167,7 +177,7 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.WarningAmber, null, tint = WarningAmber)
+                        Icon(Icons.Default.WarningAmber, "Aviso sensor", tint = WarningAmber)
                         Text(
                             "Este dispositivo no reporta un sensor físico de pasos (TYPE_STEP_COUNTER).",
                             style = MaterialTheme.typography.bodyMedium,
@@ -204,16 +214,64 @@ fun HomeScreen(
                 }
             }
 
-            // 2. Hero Personal 3D Avatar in the center
+            if (stepsToday >= 20_000L) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = DeFittSurfaceElevated),
+                    border = BorderStroke(1.dp, CodGold.copy(alpha = 0.45f)),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(Icons.Default.SelfImprovement, "Aviso descanso", tint = CodGold)
+                        Text(
+                            "¡Gran jornada! Recuerda hidratarte y descansar (límite saludable: ${DeFittRepository.MAX_DAILY_STEP_COD} COD/día).",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            }
+
+            // 2. Hero Personal 3D Avatar Stage with atmospheric studio backdrop
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(255.dp)
+                    .height(heroHeight)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color(0xFF0A160B), Color(0xFF060B06), DeFittBlack)
+                        )
+                    )
             ) {
+                // Subtle tech perspective horizon lines behind avatar stage
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val horizonY = size.height * 0.78f
+                    drawLine(
+                        color = NeonGreen.copy(alpha = 0.14f),
+                        start = Offset(0f, horizonY),
+                        end = Offset(size.width, horizonY),
+                        strokeWidth = 2f
+                    )
+                    for (i in 1..6) {
+                        val xOff = (i - 3.5f) * (size.width / 5f)
+                        drawLine(
+                            color = NeonGreen.copy(alpha = 0.08f),
+                            start = Offset(size.width / 2f + xOff * 0.35f, horizonY),
+                            end = Offset(size.width / 2f + xOff * 1.4f, size.height),
+                            strokeWidth = 1.5f
+                        )
+                    }
+                }
+
                 Avatar3DView(
                     avatarParams = state.avatarParams,
                     equippedItemIds = state.equipped.map { it.itemId },
                     modifier = Modifier.fillMaxSize(),
+                    showAngleControls = true,
                     testTag = "home_avatar_3d"
                 )
 
@@ -226,17 +284,17 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(14.dp))
-                            .background(DeFittSurfaceElevated.copy(alpha = 0.85f))
+                            .background(DeFittSurfaceElevated.copy(alpha = 0.88f))
                             .border(1.dp, DeFittOutline, RoundedCornerShape(14.dp))
                             .clickable { onOpenBodyScanner() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                            .padding(horizontal = 10.dp, vertical = 7.dp)
                             .testTag("home_body_scan_chip")
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
-                            Icon(Icons.Default.CameraAlt, null, tint = NeonGreen, modifier = Modifier.size(15.dp))
+                            Icon(Icons.Default.CameraAlt, "Escáner 3D", tint = NeonGreen, modifier = Modifier.size(15.dp))
                             Text(
                                 text = if (state.avatarParams.calibratedViaCamera) "Recalibrar 3D" else "Escáner 3D",
                                 style = MaterialTheme.typography.labelSmall,
@@ -248,17 +306,17 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(14.dp))
-                            .background(DeFittSurfaceElevated.copy(alpha = 0.85f))
+                            .background(DeFittSurfaceElevated.copy(alpha = 0.88f))
                             .border(1.dp, DeFittOutline, RoundedCornerShape(14.dp))
                             .clickable { onOpenEvolution() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                            .padding(horizontal = 10.dp, vertical = 7.dp)
                             .testTag("home_evolution_chip")
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
-                            Icon(Icons.Default.Timeline, null, tint = CodGold, modifier = Modifier.size(15.dp))
+                            Icon(Icons.Default.Timeline, "Mi Evolución", tint = CodGold, modifier = Modifier.size(15.dp))
                             Text("Mi Evolución", style = MaterialTheme.typography.labelSmall, color = TextWhite)
                         }
                     }
@@ -270,21 +328,22 @@ fun HomeScreen(
                             .align(Alignment.TopEnd)
                             .padding(12.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(CodGold.copy(alpha = 0.16f))
+                            .background(CodGold.copy(alpha = 0.18f))
                             .border(1.dp, CodGold, RoundedCornerShape(12.dp))
                             .clickable { onOpenBodyScanner() }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = 9.dp, vertical = 5.dp)
                     ) {
                         Text(
                             text = "Escaneo semanal",
                             style = MaterialTheme.typography.labelSmall,
-                            color = CodGold
+                            color = CodGold,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
 
-            // 3. Brief Activity Info Card
+            // 3. Brief Activity & COD Info Card
             Card(
                 colors = CardDefaults.cardColors(containerColor = DeFittSurface),
                 border = BorderStroke(1.dp, DeFittOutline),
@@ -304,7 +363,7 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.DirectionsWalk, null, tint = NeonGreen)
+                            Icon(Icons.AutoMirrored.Filled.DirectionsWalk, "Pasos hoy", tint = NeonGreen)
                             Text(
                                 text = "$stepsToday / $stepGoal pasos",
                                 style = MaterialTheme.typography.titleLarge,
@@ -315,7 +374,8 @@ fun HomeScreen(
                         Text(
                             text = "+${todayLog?.codEarned ?: 0L} COD hoy",
                             style = MaterialTheme.typography.labelLarge,
-                            color = CodGold
+                            color = CodGold,
+                            fontWeight = FontWeight.Bold
                         )
                     }
 
@@ -325,19 +385,20 @@ fun HomeScreen(
                         trackColor = DeFittSurfaceElevated,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .height(9.dp)
+                            .clip(RoundedCornerShape(5.dp))
                     )
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(Icons.Default.LocalDining, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.LocalDining, "Calorías", tint = TextSecondary, modifier = Modifier.size(16.dp))
                             Text(
                                 text = "${(todayLog?.caloriesTotal ?: 0f).toInt()} kcal aprox.",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -348,6 +409,14 @@ fun HomeScreen(
                             text = "Rutinas hoy: ${todayLog?.workoutsCompleted ?: 0} • XP: ${user?.xpTotal ?: 0}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary
+                        )
+                    }
+
+                    if (state.stepSensorAvailable && hasActivityPerm) {
+                        Text(
+                            text = "Sensor activo • 1 paso válido = 1 COD",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NeonGreen.copy(alpha = 0.85f)
                         )
                     }
                 }
@@ -366,7 +435,7 @@ fun HomeScreen(
                     .height(58.dp)
                     .testTag("home_workout_button")
             ) {
-                Icon(Icons.Default.FitnessCenter, contentDescription = null, modifier = Modifier.size(22.dp))
+                Icon(Icons.Default.FitnessCenter, contentDescription = "Entrenamiento", modifier = Modifier.size(22.dp))
                 Spacer(modifier = Modifier.size(10.dp))
                 Text(
                     text = "ENTRENAMIENTO",
@@ -375,7 +444,7 @@ fun HomeScreen(
                 )
             }
 
-            // Secondary quick tools: Escáner de Comida & Monedero COD
+            // 5. Secondary Quick Tools: Escáner de Comida & Monedero COD
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -390,7 +459,7 @@ fun HomeScreen(
                         .height(48.dp)
                         .testTag("home_food_scanner_button")
                 ) {
-                    Icon(Icons.Default.Restaurant, null, tint = NeonGreen, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Restaurant, "Escáner Comida", tint = NeonGreen, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.size(6.dp))
                     Text("Escáner Comida", maxLines = 1)
                 }
@@ -405,7 +474,7 @@ fun HomeScreen(
                         .height(48.dp)
                         .testTag("home_wallet_button")
                 ) {
-                    Icon(Icons.Default.MonetizationOn, null, tint = CodGold, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.MonetizationOn, "Monedero COD", tint = CodGold, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.size(6.dp))
                     Text("Monedero COD", maxLines = 1)
                 }

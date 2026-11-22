@@ -41,7 +41,8 @@ object WorkoutGenerator {
                 durationSeconds = 40,
                 restSeconds = (35 * restScale).toInt().coerceIn(20, 60),
                 difficulty = difficultyLabel,
-                animTypeName = ExerciseAnimType.PUSHUPS.name
+                animTypeName = ExerciseAnimType.PUSHUPS.name,
+                safetyNote = "Mantén los codos cerca del torso (45°) y detente ante molestia en muñecas u hombros."
             )
             ExperienceLevel.INTERMEDIO -> ExerciseItem(
                 id = "ex_pushups_knee_std",
@@ -52,7 +53,8 @@ object WorkoutGenerator {
                 durationSeconds = 45,
                 restSeconds = (30 * restScale).toInt().coerceIn(20, 50),
                 difficulty = difficultyLabel,
-                animTypeName = ExerciseAnimType.PUSHUPS.name
+                animTypeName = ExerciseAnimType.PUSHUPS.name,
+                safetyNote = "Evita arquear la zona lumbar; apoya rodillas si notas fatiga antes de terminar."
             )
             ExperienceLevel.AVANZADO -> ExerciseItem(
                 id = "ex_pushups_standard",
@@ -63,7 +65,8 @@ object WorkoutGenerator {
                 durationSeconds = 50,
                 restSeconds = (25 * restScale).toInt().coerceIn(20, 45),
                 difficulty = difficultyLabel,
-                animTypeName = ExerciseAnimType.PUSHUPS.name
+                animTypeName = ExerciseAnimType.PUSHUPS.name,
+                safetyNote = "Exhala al subir, no bloquees bruscamente los codos y mantén el cuello relajado."
             )
         }
 
@@ -76,7 +79,8 @@ object WorkoutGenerator {
             durationSeconds = 45,
             restSeconds = (30 * restScale).toInt().coerceIn(20, 50),
             difficulty = difficultyLabel,
-            animTypeName = ExerciseAnimType.SQUATS.name
+            animTypeName = ExerciseAnimType.SQUATS.name,
+            safetyNote = "Mantén talones firmes en el suelo y usa una silla detrás como referencia segura si lo prefieres."
         )
 
         val mobility = ExerciseItem(
@@ -88,7 +92,8 @@ object WorkoutGenerator {
             durationSeconds = 45,
             restSeconds = 15,
             difficulty = "Para todos los niveles",
-            animTypeName = ExerciseAnimType.MOBILITY.name
+            animTypeName = ExerciseAnimType.MOBILITY.name,
+            safetyNote = "Realiza movimientos amplios pero suaves, sin rebotes bruscos ni dolor agudo."
         )
 
         val plank = ExerciseItem(
@@ -100,7 +105,8 @@ object WorkoutGenerator {
             durationSeconds = (25 * repsScale).toInt().coerceIn(15, 45),
             restSeconds = (30 * restScale).toInt().coerceIn(20, 45),
             difficulty = difficultyLabel,
-            animTypeName = ExerciseAnimType.PLANK.name
+            animTypeName = ExerciseAnimType.PLANK.name,
+            safetyNote = "Si sientes presión en la espalda baja, eleva la cadera suavemente o apoya las rodillas."
         )
 
         val walk = ExerciseItem(
@@ -116,7 +122,8 @@ object WorkoutGenerator {
             durationSeconds = 60,
             restSeconds = 20,
             difficulty = "Moderado saludable",
-            animTypeName = ExerciseAnimType.WALKING.name
+            animTypeName = ExerciseAnimType.WALKING.name,
+            safetyNote = "Calzado firme sobre superficie antideslizante; reduce la altura de rodillas si necesitas menor impacto."
         )
 
         val coordination = ExerciseItem(
@@ -128,7 +135,8 @@ object WorkoutGenerator {
             durationSeconds = 40,
             restSeconds = 20,
             difficulty = difficultyLabel,
-            animTypeName = ExerciseAnimType.COORDINATION.name
+            animTypeName = ExerciseAnimType.COORDINATION.name,
+            safetyNote = "Apoya una mano cerca de la pared si necesitas equilibrio adicional al elevar la pierna."
         )
 
         val stretch = ExerciseItem(
@@ -140,7 +148,8 @@ object WorkoutGenerator {
             durationSeconds = 50,
             restSeconds = 10,
             difficulty = "Recuperación",
-            animTypeName = ExerciseAnimType.STRETCH.name
+            animTypeName = ExerciseAnimType.STRETCH.name,
+            safetyNote = "Estira hasta sentir tensión suave, nunca dolor; hidrátate al concluir la sesión."
         )
 
         val exercises = listOf(mobility, walk, squats, pushupVariant, plank, coordination, stretch)

@@ -61,8 +61,7 @@ abstract class DeFittDatabase : RoomDatabase() {
                     context.applicationContext,
                     DeFittDatabase::class.java,
                     "defitt_offline.db"
-                ).fallbackToDestructiveMigration(dropAllTables = true)
-                    .build()
+                ).build()
                     .also { INSTANCE = it }
             }
         }

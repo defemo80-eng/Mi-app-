@@ -141,73 +141,146 @@ fun ExerciseAnimationView(
             val w = size.width
             val h = size.height
             val cx = w / 2f
-            val cy = h / 2f
-            val floorY = h * 0.84f
+            val floorY = h * 0.86f
+            val scale = (size.minDimension / 160f).coerceIn(0.65f, 1.5f)
 
-            // Ground line
+            // Studio floor shadow + neon mat line
+            drawOval(
+                color = Color.Black.copy(alpha = 0.45f),
+                topLeft = Offset(cx - 55f * scale, floorY - 6f * scale),
+                size = androidx.compose.ui.geometry.Size(110f * scale, 12f * scale)
+            )
             drawLine(
-                color = NeonGreen.copy(alpha = 0.4f),
-                start = Offset(w * 0.12f, floorY),
-                end = Offset(w * 0.88f, floorY),
-                strokeWidth = 4f,
+                color = NeonGreen.copy(alpha = 0.55f),
+                start = Offset(w * 0.14f, floorY),
+                end = Offset(w * 0.86f, floorY),
+                strokeWidth = 3.5f * scale,
                 cap = StrokeCap.Round
             )
 
-            val jointColor = NeonGreen
-            val limbColor = TextWhite
+            fun drawLimb(a: Offset, b: Offset, color: Color, thickness: Float) {
+                drawLine(color, a, b, strokeWidth = thickness * scale, cap = StrokeCap.Round)
+            }
+
+            fun drawJoint(p: Offset, color: Color = NeonGreen, radius: Float = 4.5f) {
+                drawCircle(color, radius = radius * scale, center = p)
+            }
+
+            val bodyColor = Color(0xFFE7ECE7)
+            val accentColor = NeonGreen
 
             when (animType) {
                 ExerciseAnimType.SQUATS -> {
-                    val drop = phase * h * 0.16f
-                    val headY = h * 0.22f + drop
-                    val shoulderY = h * 0.34f + drop
-                    val hipY = h * 0.56f + drop
-                    val kneeX = cx + 22f + phase * 18f
-                    val kneeY = h * 0.71f + drop * 0.3f
-                    drawCircle(limbColor, 14f, Offset(cx, headY))
-                    drawLine(limbColor, Offset(cx, shoulderY), Offset(cx - phase * 10f, hipY), 8f, StrokeCap.Round)
-                    drawLine(limbColor, Offset(cx - phase * 10f, hipY), Offset(kneeX, kneeY), 8f, StrokeCap.Round)
-                    drawLine(limbColor, Offset(kneeX, kneeY), Offset(cx + 8f, floorY - 4f), 8f, StrokeCap.Round)
-                    drawLine(jointColor, Offset(cx, shoulderY), Offset(cx + 38f, shoulderY + 6f), 7f, StrokeCap.Round)
+                    val drop = phase * h * 0.17f
+                    val hip = Offset(cx - phase * 14f * scale, h * 0.55f + drop)
+                    val shoulder = Offset(cx + phase * 6f * scale, h * 0.34f + drop)
+                    val head = Offset(shoulder.x + 2f * scale, shoulder.y - 18f * scale)
+                    val knee = Offset(cx + 22f * scale + phase * 16f * scale, h * 0.72f + drop * 0.25f)
+                    val ankle = Offset(cx + 6f * scale, floorY - 3f * scale)
+                    val hand = Offset(shoulder.x + 36f * scale, shoulder.y + 6f * scale - phase * 8f * scale)
+
+                    drawLimb(hip, knee, bodyColor, 10f)
+                    drawLimb(knee, ankle, bodyColor, 8.5f)
+                    drawLimb(shoulder, hip, bodyColor, 12f)
+                    drawLimb(shoulder, hand, accentColor, 7f)
+                    drawCircle(bodyColor, 12f * scale, head)
+                    drawJoint(shoulder)
+                    drawJoint(hip)
+                    drawJoint(knee)
                 }
                 ExerciseAnimType.PUSHUPS -> {
                     val drop = phase * h * 0.13f
-                    val footX = w * 0.22f
-                    val handX = w * 0.74f
-                    val shoulderY = floorY - 46f + drop
-                    val hipY = floorY - 32f + drop * 0.6f
-                    drawLine(limbColor, Offset(footX, floorY - 4f), Offset((footX + handX) / 2f, hipY), 8f, StrokeCap.Round)
-                    drawLine(limbColor, Offset((footX + handX) / 2f, hipY), Offset(handX - 16f, shoulderY), 8f, StrokeCap.Round)
-                    drawLine(jointColor, Offset(handX - 16f, shoulderY), Offset(handX, floorY - 4f), 7f, StrokeCap.Round)
-                    drawCircle(limbColor, 13f, Offset(handX + 4f, shoulderY - 10f))
+                    val ankle = Offset(w * 0.20f, floorY - 4f * scale)
+                    val hand = Offset(w * 0.76f, floorY - 4f * scale)
+                    val shoulder = Offset(w * 0.70f, floorY - 46f * scale + drop)
+                    val hip = Offset(w * 0.45f, floorY - 26f * scale + drop * 0.55f)
+                    val elbow = Offset(w * 0.73f - phase * 8f * scale, (shoulder.y + hand.y) / 2f)
+                    val head = Offset(shoulder.x + 15f * scale, shoulder.y - 9f * scale)
+
+                    drawLimb(ankle, hip, bodyColor, 9f)
+                    drawLimb(hip, shoulder, bodyColor, 11.5f)
+                    drawLimb(shoulder, elbow, accentColor, 7.5f)
+                    drawLimb(elbow, hand, accentColor, 7f)
+                    drawCircle(bodyColor, 11.5f * scale, head)
+                    drawJoint(shoulder)
+                    drawJoint(elbow)
+                    drawJoint(hip)
                 }
                 ExerciseAnimType.PLANK -> {
-                    val breathe = sin(phase * Math.PI).toFloat() * 5f
-                    val footX = w * 0.20f
-                    val elbowX = w * 0.72f
-                    val bodyY = floorY - 36f - breathe
-                    drawLine(limbColor, Offset(footX, floorY - 4f), Offset(elbowX, bodyY), 9f, StrokeCap.Round)
-                    drawLine(jointColor, Offset(elbowX, bodyY), Offset(elbowX, floorY - 4f), 8f, StrokeCap.Round)
-                    drawLine(jointColor, Offset(elbowX, floorY - 4f), Offset(elbowX + 24f, floorY - 4f), 7f, StrokeCap.Round)
-                    drawCircle(limbColor, 13f, Offset(elbowX + 14f, bodyY - 14f))
+                    val breathe = sin(phase * Math.PI).toFloat() * 4f * scale
+                    val ankle = Offset(w * 0.18f, floorY - 4f * scale)
+                    val elbow = Offset(w * 0.72f, floorY - 4f * scale)
+                    val shoulder = Offset(w * 0.70f, floorY - 38f * scale - breathe)
+                    val hip = Offset(w * 0.44f, floorY - 22f * scale - breathe * 0.7f)
+                    val head = Offset(shoulder.x + 15f * scale, shoulder.y - 10f * scale)
+
+                    drawLimb(ankle, hip, bodyColor, 9.5f)
+                    drawLimb(hip, shoulder, bodyColor, 11.5f)
+                    drawLimb(shoulder, elbow, accentColor, 8f)
+                    drawLimb(elbow, Offset(elbow.x + 22f * scale, elbow.y), accentColor, 7f)
+                    drawCircle(bodyColor, 11.5f * scale, head)
+                    drawJoint(shoulder)
+                    drawJoint(hip)
                 }
-                ExerciseAnimType.WALKING, ExerciseAnimType.COORDINATION -> {
-                    val swing = (phase - 0.5f) * 38f
-                    drawCircle(limbColor, 14f, Offset(cx, h * 0.22f))
-                    drawLine(limbColor, Offset(cx, h * 0.34f), Offset(cx, h * 0.57f), 8f, StrokeCap.Round)
-                    drawLine(jointColor, Offset(cx, h * 0.57f), Offset(cx + swing, floorY - 4f), 8f, StrokeCap.Round)
-                    drawLine(limbColor, Offset(cx, h * 0.57f), Offset(cx - swing, floorY - 4f), 8f, StrokeCap.Round)
-                    drawLine(jointColor, Offset(cx, h * 0.37f), Offset(cx - swing * 0.9f, h * 0.52f), 7f, StrokeCap.Round)
-                    drawLine(limbColor, Offset(cx, h * 0.37f), Offset(cx + swing * 0.9f, h * 0.52f), 7f, StrokeCap.Round)
+                ExerciseAnimType.WALKING -> {
+                    val swing = (phase - 0.5f) * 38f * scale
+                    val shoulder = Offset(cx, h * 0.34f)
+                    val hip = Offset(cx, h * 0.56f)
+                    val kneeF = Offset(cx + swing * 0.65f, h * 0.71f - kotlin.math.abs(swing) * 0.12f)
+                    val footF = Offset(cx + swing, floorY - 4f * scale)
+                    val kneeB = Offset(cx - swing * 0.65f, h * 0.71f)
+                    val footB = Offset(cx - swing, floorY - 4f * scale)
+                    val handF = Offset(cx - swing * 0.85f, h * 0.50f)
+                    val handB = Offset(cx + swing * 0.85f, h * 0.50f)
+
+                    drawLimb(hip, kneeB, bodyColor.copy(alpha = 0.6f), 9f)
+                    drawLimb(kneeB, footB, bodyColor.copy(alpha = 0.6f), 8f)
+                    drawLimb(hip, kneeF, accentColor, 9.5f)
+                    drawLimb(kneeF, footF, accentColor, 8.5f)
+                    drawLimb(shoulder, hip, bodyColor, 12f)
+                    drawLimb(shoulder, handB, bodyColor.copy(alpha = 0.7f), 7f)
+                    drawLimb(shoulder, handF, accentColor, 7.5f)
+                    drawCircle(bodyColor, 12f * scale, Offset(cx, h * 0.20f))
+                    drawJoint(hip)
+                    drawJoint(kneeF)
+                }
+                ExerciseAnimType.COORDINATION -> {
+                    val lift = phase
+                    val shoulder = Offset(cx, h * 0.34f)
+                    val hip = Offset(cx, h * 0.56f)
+                    val raisedKnee = Offset(cx + 22f * scale * lift, h * 0.70f - 20f * scale * lift)
+                    val raisedFoot = Offset(raisedKnee.x - 4f * scale, raisedKnee.y + 18f * scale)
+                    val supportFoot = Offset(cx - 10f * scale, floorY - 4f * scale)
+                    val crossHand = Offset(cx + 16f * scale * lift, h * 0.54f - 8f * scale * lift)
+                    val balanceHand = Offset(cx - 32f * scale, h * 0.44f - 10f * scale * lift)
+
+                    drawLimb(hip, supportFoot, bodyColor, 9.5f)
+                    drawLimb(hip, raisedKnee, accentColor, 9.5f)
+                    drawLimb(raisedKnee, raisedFoot, accentColor, 8.5f)
+                    drawLimb(shoulder, hip, bodyColor, 12f)
+                    drawLimb(shoulder, crossHand, accentColor, 7.5f)
+                    drawLimb(shoulder, balanceHand, bodyColor, 7f)
+                    drawCircle(bodyColor, 12f * scale, Offset(cx, h * 0.20f))
+                    drawJoint(raisedKnee)
+                    drawJoint(crossHand)
                 }
                 ExerciseAnimType.MOBILITY, ExerciseAnimType.STRETCH -> {
-                    val armLift = phase * 42f
-                    drawCircle(limbColor, 14f, Offset(cx, h * 0.24f))
-                    drawLine(limbColor, Offset(cx, h * 0.36f), Offset(cx, h * 0.60f), 8f, StrokeCap.Round)
-                    drawLine(limbColor, Offset(cx, h * 0.60f), Offset(cx - 18f, floorY - 4f), 8f, StrokeCap.Round)
-                    drawLine(limbColor, Offset(cx, h * 0.60f), Offset(cx + 18f, floorY - 4f), 8f, StrokeCap.Round)
-                    drawLine(jointColor, Offset(cx, h * 0.38f), Offset(cx - 34f, h * 0.42f - armLift), 7f, StrokeCap.Round)
-                    drawLine(jointColor, Offset(cx, h * 0.38f), Offset(cx + 34f, h * 0.42f - armLift), 7f, StrokeCap.Round)
+                    val armLift = phase * 38f * scale
+                    val sway = sin(phase * Math.PI).toFloat() * 8f * scale
+                    val shoulder = Offset(cx + sway * 0.4f, h * 0.36f)
+                    val hip = Offset(cx, h * 0.59f)
+                    val leftHand = Offset(shoulder.x - 32f * scale, h * 0.42f - armLift)
+                    val rightHand = Offset(shoulder.x + 32f * scale, h * 0.42f - armLift)
+
+                    drawLimb(hip, Offset(cx - 18f * scale, floorY - 4f * scale), bodyColor, 9.5f)
+                    drawLimb(hip, Offset(cx + 18f * scale, floorY - 4f * scale), bodyColor, 9.5f)
+                    drawLimb(shoulder, hip, bodyColor, 12f)
+                    drawLimb(shoulder, leftHand, accentColor, 7.5f)
+                    drawLimb(shoulder, rightHand, accentColor, 7.5f)
+                    drawCircle(bodyColor, 12f * scale, Offset(shoulder.x, h * 0.22f))
+                    drawJoint(shoulder)
+                    drawJoint(leftHand)
+                    drawJoint(rightHand)
                 }
             }
         }

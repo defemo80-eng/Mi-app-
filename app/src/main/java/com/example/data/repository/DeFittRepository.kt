@@ -183,6 +183,15 @@ class DeFittRepository(
     }
 
     suspend fun logout() {
+        val currentId = prefs.getActiveUserId()
+        if (currentId != null) {
+            stepMutex.withLock {
+                val state = db.stepStateDao().getState(currentId)
+                if (state != null) {
+                    db.stepStateDao().upsertState(state.copy(lastSensorTotalSteps = -1f))
+                }
+            }
+        }
         prefs.setActiveUserId(null)
     }
 
@@ -248,9 +257,10 @@ class DeFittRepository(
 
     /**
      * Processes hardware TYPE_STEP_COUNTER reading safely:
-     * - Detects device reboots via sensor reset or elapsedRealtime
-     * - Protects against duplicate callbacks & impossible burst spikes
-     * - Credits 1 valid step = 1 COD atomically
+     * - Never credits pre-existing cumulative boot steps on baseline or HAL 0->N sync jumps
+     * - Detects genuine hardware counter resets after device reboots
+     * - Prevents duplicates and impossible bursts atomically in a single Room transaction
+     * - Credits 1 valid new step = 1 COD (up to a healthy daily safeguard cap)
      */
     suspend fun processHardwareStepSensorValue(
         userId: String,
@@ -264,22 +274,44 @@ class DeFittRepository(
         val elapsedMs = SystemClock.elapsedRealtime()
         val prevState = db.stepStateDao().getState(userId)
 
-        if (!sensorAvailable || sensorTotalStepsSinceBoot < 0f) {
+        if (!sensorAvailable || sensorTotalStepsSinceBoot < 0f ||
+            sensorTotalStepsSinceBoot.isNaN() || sensorTotalStepsSinceBoot.isInfinite()
+        ) {
             db.stepStateDao().upsertState(
-                StepHardwareStateEntity(
-                    userId = userId,
-                    lastSensorTotalSteps = prevState?.lastSensorTotalSteps ?: -1f,
+                (prevState ?: StepHardwareStateEntity(userId = userId)).copy(
                     lastElapsedRealtimeMs = elapsedMs,
                     lastRecordedDateKey = today,
-                    lastStepEventTimestampMs = nowMs,
                     sensorAvailable = sensorAvailable
                 )
             )
             return@withLock 0L
         }
 
+        // 1. First reading / uncalibrated baseline: record current boot total and credit 0 steps
         if (prevState == null || prevState.lastSensorTotalSteps < 0f) {
-            // Establish baseline on first reading without fabricating past steps
+            db.withTransaction {
+                db.stepStateDao().upsertState(
+                    StepHardwareStateEntity(
+                        userId = userId,
+                        lastSensorTotalSteps = sensorTotalStepsSinceBoot,
+                        lastElapsedRealtimeMs = elapsedMs,
+                        lastRecordedDateKey = today,
+                        lastStepEventTimestampMs = nowMs,
+                        sensorAvailable = true
+                    )
+                )
+                ensureDailyLog(userId, today)
+            }
+            return@withLock 0L
+        }
+
+        // 2. Guard against sensor HALs that emit a dummy 0f right after registerListener
+        // followed shortly by the real cumulative boot count (e.g. 0 -> 1596 in < 15s)
+        val elapsedSinceLastEventMs = (nowMs - prevState.lastStepEventTimestampMs).coerceAtLeast(0L)
+        if (prevState.lastSensorTotalSteps == 0f &&
+            elapsedSinceLastEventMs <= 15_000L &&
+            sensorTotalStepsSinceBoot > 40f
+        ) {
             db.stepStateDao().upsertState(
                 StepHardwareStateEntity(
                     userId = userId,
@@ -290,14 +322,12 @@ class DeFittRepository(
                     sensorAvailable = true
                 )
             )
-            ensureDailyLog(userId, today)
             return@withLock 0L
         }
 
-        val rebootDetected = sensorTotalStepsSinceBoot < prevState.lastSensorTotalSteps ||
-            elapsedMs < prevState.lastElapsedRealtimeMs
-
-        val rawDelta = if (rebootDetected) {
+        // 3. Genuine reboot reset ONLY when hardware counter actually dropped below stored reading
+        val sensorCounterReset = sensorTotalStepsSinceBoot < prevState.lastSensorTotalSteps
+        val rawDelta = if (sensorCounterReset) {
             sensorTotalStepsSinceBoot.toLong().coerceAtLeast(0L)
         } else {
             (sensorTotalStepsSinceBoot - prevState.lastSensorTotalSteps).toLong()
@@ -315,71 +345,100 @@ class DeFittRepository(
             return@withLock 0L
         }
 
-        // Anti-manipulation rate guard: human sprint cadence max ~5 steps/sec.
-        // Allow up to 18000 steps per single background batch (approx 1 hour sustained walk).
         val timeDiffSec = ((nowMs - prevState.lastStepEventTimestampMs) / 1000.0).coerceAtLeast(1.0)
-        val maxPlausibleSteps = (timeDiffSec * 5.0).toLong().coerceIn(25L, 18000L)
-        val validDelta = rawDelta.coerceAtMost(maxPlausibleSteps)
 
-        if (validDelta > 0L) {
-            creditValidSteps(userId, today, validDelta, nowMs)
+        // 4. Reject impossible sensor sync jumps (e.g., >300 steps appearing in <15s) by re-baselining cleanly
+        if (rawDelta > 300L && timeDiffSec < 15.0) {
+            db.stepStateDao().upsertState(
+                StepHardwareStateEntity(
+                    userId = userId,
+                    lastSensorTotalSteps = sensorTotalStepsSinceBoot,
+                    lastElapsedRealtimeMs = elapsedMs,
+                    lastRecordedDateKey = today,
+                    lastStepEventTimestampMs = nowMs,
+                    sensorAvailable = true
+                )
+            )
+            return@withLock 0L
         }
 
-        db.stepStateDao().upsertState(
-            StepHardwareStateEntity(
-                userId = userId,
-                lastSensorTotalSteps = sensorTotalStepsSinceBoot,
-                lastElapsedRealtimeMs = elapsedMs,
-                lastRecordedDateKey = today,
-                lastStepEventTimestampMs = nowMs,
-                sensorAvailable = true
-            )
+        // Anti-manipulation cadence guard (~5 steps/sec max, up to 18000 per sustained background window)
+        val maxPlausibleSteps = (timeDiffSec * 5.0).toLong().coerceIn(25L, 18_000L)
+        val validDelta = rawDelta.coerceAtMost(maxPlausibleSteps)
+
+        val nextHardwareState = StepHardwareStateEntity(
+            userId = userId,
+            lastSensorTotalSteps = sensorTotalStepsSinceBoot,
+            lastElapsedRealtimeMs = elapsedMs,
+            lastRecordedDateKey = today,
+            lastStepEventTimestampMs = nowMs,
+            sensorAvailable = true
         )
+
+        if (validDelta > 0L) {
+            creditValidStepsAtomic(userId, today, validDelta, nowMs, nextHardwareState)
+        } else {
+            db.stepStateDao().upsertState(nextHardwareState)
+        }
         return@withLock validDelta
     }
 
-    suspend fun updateSensorAvailability(userId: String, available: Boolean) {
+    suspend fun updateSensorAvailability(userId: String, available: Boolean) = stepMutex.withLock {
         val current = db.stepStateDao().getState(userId)
         db.stepStateDao().upsertState(
             (current ?: StepHardwareStateEntity(userId = userId)).copy(sensorAvailable = available)
         )
     }
 
-    private suspend fun creditValidSteps(
+    private suspend fun creditValidStepsAtomic(
         userId: String,
         dateKey: String,
         validSteps: Long,
-        nowMs: Long
+        nowMs: Long,
+        nextHardwareState: StepHardwareStateEntity
     ) {
-        var newBalance = 0L
         var todayStepsTotal = 0L
         var stepGoal = 6000
         db.withTransaction {
             val user = db.userDao().getUserById(userId) ?: return@withTransaction
             stepGoal = user.dailyStepGoal
             val log = ensureDailyLog(userId, dateKey, user.avatarConfigJson)
+
+            // Healthy daily COD safeguard (max 25,000 COD/day from steps so excessive activity isn't incentivized)
+            val remainingDailyCod = (MAX_DAILY_STEP_COD - log.codEarned).coerceAtLeast(0L)
+            val codDelta = minOf(validSteps, remainingDailyCod)
+
             val updatedLog = log.copy(
                 steps = log.steps + validSteps,
-                codEarned = log.codEarned + validSteps
+                codEarned = log.codEarned + codDelta
             )
             todayStepsTotal = updatedLog.steps
-            newBalance = user.codBalance + validSteps
+            val newBalance = user.codBalance + codDelta
+
             db.dailyLogDao().upsertLog(updatedLog)
-            db.userDao().addCodBalance(userId, validSteps)
-            db.walletDao().insertTransaction(
-                CodTransactionEntity(
-                    id = UUID.randomUUID().toString(),
-                    userId = userId,
-                    timestamp = nowMs,
-                    dateKey = dateKey,
-                    type = "EARN_STEPS",
-                    amount = validSteps,
-                    description = "+$validSteps pasos válidos",
-                    balanceAfter = newBalance
+            db.stepStateDao().upsertState(nextHardwareState)
+
+            if (codDelta > 0L) {
+                db.userDao().addCodBalance(userId, codDelta)
+                db.walletDao().insertTransaction(
+                    CodTransactionEntity(
+                        id = UUID.randomUUID().toString(),
+                        userId = userId,
+                        timestamp = nowMs,
+                        dateKey = dateKey,
+                        type = "EARN_STEPS",
+                        amount = codDelta,
+                        description = "+$validSteps pasos válidos",
+                        balanceAfter = newBalance
+                    )
                 )
-            )
+            }
         }
         evaluateStepAchievements(userId, todayStepsTotal, stepGoal)
+    }
+
+    companion object {
+        const val MAX_DAILY_STEP_COD = 25_000L
     }
 
     suspend fun addFoodEntry(
